@@ -29,6 +29,10 @@ import eventImage from "../assets/images/event.jpg";
 import { styled } from "@mui/material/styles";
 import EditIcon from '@mui/icons-material/Edit';
 import FileDownloadDoneIcon from '@mui/icons-material/FileDownloadDone';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
+
 
 const BackgroundContainer = styled("div")({
   background: '#f2f6ff',
@@ -44,6 +48,10 @@ const VendorDashboard = () => {
   const [isEditing, setIsEditing] = useState(false);
 
   const authToken = localStorage.getItem('authToken'); 
+
+  const [purchases, setPurchases] = useState([]);
+  const [openPurchaseModal, setOpenPurchaseModal] = useState(false);
+
 
 
   useEffect(() => {
@@ -70,6 +78,27 @@ const VendorDashboard = () => {
       console.error('Failed to fetch events:', error.response || error);
     }
   };
+
+  // Fetch Purchases by Event ID
+const fetchPurchases = async () => {
+  try {
+    const response = await axios.get(`${config.apiUrl}api/purchases/event/${selectedEvent._id}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    setPurchases(response.data);
+    setOpenPurchaseModal(true);
+  } catch (error) {
+    console.error('Failed to fetch purchases:', error.response || error);
+    Swal.fire({
+      title: 'Error',
+      text: 'Failed to fetch purchase details.',
+      icon: 'error',
+      customClass: {
+        container: 'swal2-custom-z-index'
+      }
+    });
+  }
+};
 
   const handleOpenEventModal = (event) => {
     fetchEvents();
@@ -345,6 +374,72 @@ const VendorDashboard = () => {
       }
     },
   });
+
+
+  const tableHeaderStyle = {
+    border: "1px solid #ddd",
+    padding: "8px",
+    fontWeight: "bold",
+    textAlign: "left",
+    backgroundColor: "#f2f2f2",
+  };
+  
+  const tableDataStyle = {
+    border: "1px solid #ddd",
+    padding: "8px",
+  };
+
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF();
+  
+    // Title
+    doc.text(
+      `Purchase Details for Event: ${selectedEvent?.name}`, 
+      doc.internal.pageSize.getWidth() / 2, 
+      20, 
+      { align: 'center' }
+    );
+  
+    // Add Summary Info
+    const totalTicketsSold = purchases.reduce((sum, purchase) => sum + purchase.quantity, 0);
+    const remainingTickets = selectedEvent.totalTickets;
+    
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+
+    // Summary Section
+    doc.text(`Total Tickets Sold: ${totalTicketsSold}`, 14, 30);
+    doc.text(`Remaining Tickets: ${remainingTickets}`, 14, 35);
+
+    doc.setTextColor(0);
+  
+    // Table Headers and Data
+    const tableColumn = ['#', 'Customer Name', 'Email', 'Quantity', 'Purchase Date'];
+    const tableRows = purchases.map((purchase, index) => [
+      index + 1,
+      `${purchase.customerId.firstName} ${purchase.customerId.lastName}`,
+      purchase.customerId.email,
+      purchase.quantity,
+      new Date(purchase.purchaseDate).toLocaleDateString("en-US", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    ]);
+  
+    // Generate Table
+    doc.autoTable({
+      head: [tableColumn],
+      body: tableRows,
+      startY: 50,  // Start below the summary section
+    });
+  
+    // Save PDF
+    doc.save(`Purchase_Details_${selectedEvent?.name}.pdf`);
+  };
+  
   
 
   return (
@@ -675,6 +770,14 @@ const VendorDashboard = () => {
             />
           </Grid>
           <Grid item >
+            <Button
+              sx={{ marginRight: 2 }}
+              onClick={fetchPurchases}
+              color="info"
+              variant="contained"
+            >
+              View Purchases
+            </Button>
             <Button sx={{marginRight:2}} onClick={handleDeleteEvent} color="error" variant="contained">
               Delete Event
             </Button>
@@ -887,6 +990,78 @@ const VendorDashboard = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        maxWidth="md"
+        fullWidth
+        open={openPurchaseModal}
+        onClose={() => setOpenPurchaseModal(false)}
+      >
+        <DialogTitle fontWeight={600}>Purchase Details</DialogTitle>
+        <DialogContent dividers>
+          {purchases.length > 0 ? (
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom>
+                  Tickets Purchased for Event: {selectedEvent?.name}
+                </Typography>
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    marginTop: "1rem",
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderStyle}>Customer Name</th>
+                      <th style={tableHeaderStyle}>Email</th>
+                      <th style={tableHeaderStyle}>Quantity</th>
+                      <th style={tableHeaderStyle}>Purchase Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {purchases.map((purchase) => (
+                      <tr key={purchase._id}>
+                        <td style={tableDataStyle}>
+                          {purchase.customerId.firstName} {purchase.customerId.lastName}
+                        </td>
+                        <td style={tableDataStyle}>{purchase.customerId.email}</td>
+                        <td style={tableDataStyle}>{purchase.quantity}</td>
+                        <td style={tableDataStyle}>
+                          {new Date(purchase.purchaseDate).toLocaleDateString("en-US", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Grid>
+            </Grid>
+          ) : (
+            <Typography color="textSecondary">No purchases found for this event.</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={handleDownloadPDF}
+            color="success"
+            variant="contained"
+            sx={{ marginRight: 2 }}
+          >
+            Download PDF
+          </Button>
+          <Button onClick={() => setOpenPurchaseModal(false)} color="primary" variant="contained">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
 
     </BackgroundContainer>
   );

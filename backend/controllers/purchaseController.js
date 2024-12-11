@@ -70,3 +70,23 @@ exports.viewPurchases = async (req, res) => {
     }
 };
 
+// Fetch Purchases by Event ID
+exports.viewPurchasesByEventId = async (req, res) => {
+    const { eventId } = req.params;
+
+    try {
+        const purchases = await Purchase.find({ eventId })
+            .populate('customerId', 'firstName lastName email')
+            .populate('eventId', 'name');
+
+        if (!purchases || purchases.length === 0) {
+            return res.status(404).json({ error: 'No purchases found for this event' });
+        }
+
+        res.json(purchases);
+    } catch (error) {
+        console.error('Error fetching purchases by event ID:', error);
+        res.status(500).json({ error: 'Failed to fetch purchases' });
+    }
+};
+
