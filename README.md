@@ -1,4 +1,4 @@
-![Screenshot 2025-01-04 011457](https://github.com/user-attachments/assets/9ab79a89-da67-40a0-8c6c-b43d2a485b9a)# Ticket System - MERN Stack Application
+# Ticket System - MERN Stack Application
 
 ## Table of Contents
 1. [Overview](#overview)
